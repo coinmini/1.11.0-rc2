@@ -353,7 +353,7 @@ func DefaultStorageMiner() *StorageMiner {
 			ParallelFetchLimit: 10,
 
 			// By default use the hardware resource filtering strategy.
-			ResourceFiltering: sectorstorage.ResourceFilteringHardware,
+			// ResourceFiltering: sectorstorage.ResourceFilteringHardware,
 		},
 
 		Dealmaking: DealmakingConfig{

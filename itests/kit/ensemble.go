@@ -447,7 +447,7 @@ func (n *Ensemble) Start() *Ensemble {
 			// regardless of system pressure.
 			node.Override(new(sectorstorage.SealerConfig), func() sectorstorage.SealerConfig {
 				scfg := config.DefaultStorageMiner()
-				scfg.Storage.ResourceFiltering = sectorstorage.ResourceFilteringDisabled
+				// scfg.Storage.ResourceFiltering = sectorstorage.ResourceFilteringDisabled
 				return scfg.Storage
 			}),
 		}

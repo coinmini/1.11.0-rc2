@@ -37,7 +37,7 @@ type WorkerConfig struct {
 	// IgnoreResourceFiltering enables task distribution to happen on this
 	// worker regardless of its currently available resources. Used in testing
 	// with the local worker.
-	IgnoreResourceFiltering bool
+	// IgnoreResourceFiltering bool
 }
 
 // used do provide custom proofs impl (mostly used in testing)
@@ -79,12 +79,12 @@ func newLocalWorker(executor ExecutorFunc, wcfg WorkerConfig, store stores.Store
 		ct: &workerCallTracker{
 			st: cst,
 		},
-		acceptTasks:     acceptTasks,
-		executor:        executor,
-		noSwap:          wcfg.NoSwap,
-		ignoreResources: wcfg.IgnoreResourceFiltering,
-		session:         uuid.New(),
-		closing:         make(chan struct{}),
+		acceptTasks: acceptTasks,
+		executor:    executor,
+		noSwap:      wcfg.NoSwap,
+		// ignoreResources: wcfg.IgnoreResourceFiltering,
+		session: uuid.New(),
+		closing: make(chan struct{}),
 	}
 
 	if w.executor == nil {
