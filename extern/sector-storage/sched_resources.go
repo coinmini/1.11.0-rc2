@@ -6,23 +6,22 @@ import (
 	"github.com/filecoin-project/lotus/extern/sector-storage/storiface"
 )
 
-// 等待阶段，随时查看Resources的情况
-func (a *activeResources) withResources(id WorkerID, wr storiface.WorkerResources, r Resources, locker sync.Locker, cb func() error) error {
-	// for !a.canHandleRequest(r, id, "withResources", wr) {
-	// 	if a.cond == nil {
-	// 		a.cond = sync.NewCond(locker)
-	// 	}
-	// 	a.cond.Wait()
-	// }
+func (a *activeResources) withResources(id WorkerID, wr storiface.WorkerInfo, r Resources, locker sync.Locker, cb func() error) error {
+	for !a.canHandleRequest(r, id, "withResources", wr) {
+		if a.cond == nil {
+			a.cond = sync.NewCond(locker)
+		}
+		a.cond.Wait()
+	}
 
-	a.add(wr, r)
+	a.add(wr.Resources, r)
 
 	err := cb()
 
-	a.free(wr, r)
-	// if a.cond != nil {
-	// 	a.cond.Broadcast()
-	// }
+	a.free(wr.Resources, r)
+	if a.cond != nil {
+		a.cond.Broadcast()
+	}
 
 	return err
 }
@@ -45,8 +44,15 @@ func (a *activeResources) free(wr storiface.WorkerResources, r Resources) {
 	a.memUsedMax -= r.MaxMemory
 }
 
-func (a *activeResources) canHandleRequest(needRes Resources, wid WorkerID, caller string, res storiface.WorkerResources) bool {
+// canHandleRequest evaluates if the worker has enough available resources to
+// handle the request.
+func (a *activeResources) canHandleRequest(needRes Resources, wid WorkerID, caller string, info storiface.WorkerInfo) bool {
+	if info.IgnoreResources {
+		// shortcircuit; if this worker is ignoring resources, it can always handle the request.
+		return true
+	}
 
+	res := info.Resources
 	// TODO: dedupe needRes.BaseMinMemory per task type (don't add if that task is already running)
 	minNeedMem := res.MemReserved + a.memUsedMin + needRes.MinMemory + needRes.BaseMinMemory
 	if minNeedMem > res.MemPhysical {

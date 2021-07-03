@@ -4,10 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"strconv"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,10 +18,12 @@ import (
 type WorkerInfo struct {
 	Hostname string
 
-	Resources WorkerResources
-	//下面这个两个也是默然添加的
-	TaskResourcesLk sync.Mutex
-	TaskResources   map[sealtasks.TaskType]*TaskConfig
+	// IgnoreResources indicates whether the worker's available resources should
+	// be used ignored (true) or used (false) for the purposes of scheduling and
+	// task assignment. Only supported on local workers. Used for testing.
+	// Default should be false (zero value, i.e. resources taken into account).
+	IgnoreResources bool
+	Resources       WorkerResources
 }
 
 type WorkerResources struct {
@@ -93,7 +91,6 @@ type WorkerCalls interface {
 	ReleaseUnsealed(ctx context.Context, sector storage.SectorRef, safeToFree []storage.Range) (CallID, error)
 	MoveStorage(ctx context.Context, sector storage.SectorRef, types SectorFileType) (CallID, error)
 	UnsealPiece(context.Context, storage.SectorRef, UnpaddedByteIndex, abi.UnpaddedPieceSize, abi.SealRandomness, cid.Cid) (CallID, error)
-	// ReadPiece(context.Context, io.Writer, storage.SectorRef, UnpaddedByteIndex, abi.UnpaddedPieceSize) (CallID, error)
 	Fetch(context.Context, storage.SectorRef, SectorFileType, PathType, AcquireMode) (CallID, error)
 }
 
@@ -149,164 +146,4 @@ type WorkerReturn interface {
 	ReturnUnsealPiece(ctx context.Context, callID CallID, err *CallError) error
 	ReturnReadPiece(ctx context.Context, callID CallID, ok bool, err *CallError) error
 	ReturnFetch(ctx context.Context, callID CallID, err *CallError) error
-}
-
-// 下面是默然的代码，对应给worker 设置能分配的任务列别
-// --ablility =  AP:1, PC1:0,PC2:2,C1:1,C2:1,FIN:5,GET:5,UNS:1,RD:1
-
-type TaskConfig struct {
-	LimitCount int
-	RunCount   int
-}
-
-type taskLimitConfig struct {
-	AddPiece     int
-	PreCommit1   int
-	PreCommit2   int
-	Commit1      int
-	Commit2      int
-	Fetch        int
-	Finalize     int
-	Unseal       int
-	ReadUnsealed int
-}
-
-//设置ability
-func NewTaskLimitConfig() map[sealtasks.TaskType]*TaskConfig {
-	config := &taskLimitConfig{
-		AddPiece:     1,
-		PreCommit1:   1,
-		PreCommit2:   1,
-		Commit1:      1,
-		Commit2:      1,
-		Fetch:        1,
-		Finalize:     1,
-		Unseal:       1,
-		ReadUnsealed: 1,
-	}
-
-	ability := ""
-	if env, ok := os.LookupEnv("ABILITY"); ok {
-		ability = strings.Replace(string(env), " ", "", -1) // 去除空格
-		ability = strings.Replace(ability, "\n", "", -1)    // 去除换行符
-	}
-	splitArr := strings.Split(ability, ",")
-	for _, part := range splitArr {
-		if strings.Contains(part, "AP:") {
-			splitPart := strings.Split(part, ":")
-			if intCount, err := strconv.Atoi(splitPart[1]); err == nil {
-				config.AddPiece = intCount
-			}
-		} else if strings.Contains(part, "PC1:") {
-			splitPart := strings.Split(part, ":")
-			if intCount, err := strconv.Atoi(splitPart[1]); err == nil {
-				config.PreCommit1 = intCount
-			}
-		} else if strings.Contains(part, "PC2:") {
-			splitPart := strings.Split(part, ":")
-			if intCount, err := strconv.Atoi(splitPart[1]); err == nil {
-				config.PreCommit2 = intCount
-			}
-		} else if strings.Contains(part, "C1:") {
-			splitPart := strings.Split(part, ":")
-			if intCount, err := strconv.Atoi(splitPart[1]); err == nil {
-				config.Commit1 = intCount
-			}
-		} else if strings.Contains(part, "C2:") {
-			splitPart := strings.Split(part, ":")
-			if intCount, err := strconv.Atoi(splitPart[1]); err == nil {
-				config.Commit2 = intCount
-			}
-		} else if strings.Contains(part, "GET:") {
-			splitPart := strings.Split(part, ":")
-			if intCount, err := strconv.Atoi(splitPart[1]); err == nil {
-				config.Fetch = intCount
-			}
-		} else if strings.Contains(part, "FIN:") {
-			splitPart := strings.Split(part, ":")
-			if intCount, err := strconv.Atoi(splitPart[1]); err == nil {
-				config.Finalize = intCount
-			}
-		} else if strings.Contains(part, "UNS:") {
-			splitPart := strings.Split(part, ":")
-			if intCount, err := strconv.Atoi(splitPart[1]); err == nil {
-				config.Unseal = intCount
-			}
-		} else if strings.Contains(part, "RD:") {
-			splitPart := strings.Split(part, ":")
-			if intCount, err := strconv.Atoi(splitPart[1]); err == nil {
-				config.ReadUnsealed = intCount
-			}
-		}
-	}
-
-	//检查资源
-	cfgResources := make(map[sealtasks.TaskType]*TaskConfig)
-
-	//刚开始worker启动时候，ok肯定是false
-	if _, ok := cfgResources[sealtasks.TTAddPiece]; !ok {
-		cfgResources[sealtasks.TTAddPiece] = &TaskConfig{
-			LimitCount: config.AddPiece,
-			RunCount:   0,
-		}
-	}
-
-	if _, ok := cfgResources[sealtasks.TTPreCommit1]; !ok {
-		cfgResources[sealtasks.TTPreCommit1] = &TaskConfig{
-			LimitCount: config.PreCommit1,
-			RunCount:   0,
-		}
-	}
-
-	if _, ok := cfgResources[sealtasks.TTPreCommit2]; !ok {
-		cfgResources[sealtasks.TTPreCommit2] = &TaskConfig{
-			LimitCount: config.PreCommit2,
-			RunCount:   0,
-		}
-	}
-
-	if _, ok := cfgResources[sealtasks.TTCommit1]; !ok {
-		cfgResources[sealtasks.TTCommit1] = &TaskConfig{
-			LimitCount: config.Commit1,
-			RunCount:   0,
-		}
-	}
-
-	if _, ok := cfgResources[sealtasks.TTCommit2]; !ok {
-		cfgResources[sealtasks.TTCommit2] = &TaskConfig{
-			LimitCount: config.Commit2,
-			RunCount:   0,
-		}
-	}
-
-	if _, ok := cfgResources[sealtasks.TTFetch]; !ok {
-		cfgResources[sealtasks.TTFetch] = &TaskConfig{
-			LimitCount: config.Fetch,
-			RunCount:   0,
-		}
-	}
-
-	if _, ok := cfgResources[sealtasks.TTFinalize]; !ok {
-		cfgResources[sealtasks.TTFinalize] = &TaskConfig{
-			LimitCount: config.Finalize,
-			RunCount:   0,
-		}
-	}
-
-	if _, ok := cfgResources[sealtasks.TTUnseal]; !ok {
-		cfgResources[sealtasks.TTUnseal] = &TaskConfig{
-			LimitCount: config.Unseal,
-			RunCount:   0,
-		}
-	}
-
-	if _, ok := cfgResources[sealtasks.TTReadUnsealed]; !ok {
-		cfgResources[sealtasks.TTReadUnsealed] = &TaskConfig{
-			LimitCount: config.ReadUnsealed,
-			RunCount:   0,
-		}
-	}
-
-	//把config的资源返回
-	return cfgResources
 }
