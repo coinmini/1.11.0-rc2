@@ -300,12 +300,13 @@ func NewTaskLimitConfig() map[sealtasks.TaskType]*TaskConfig {
 		}
 	}
 
-	if _, ok := cfgResources[sealtasks.TTReadUnsealed]; !ok {
-		cfgResources[sealtasks.TTReadUnsealed] = &TaskConfig{
-			LimitCount: config.ReadUnsealed,
-			RunCount:   0,
-		}
-	}
+	//去掉TTReadUnsealed
+	// if _, ok := cfgResources[sealtasks.TTReadUnsealed]; !ok {
+	// 	cfgResources[sealtasks.TTReadUnsealed] = &TaskConfig{
+	// 		LimitCount: config.ReadUnsealed,
+	// 		RunCount:   0,
+	// 	}
+	// }
 
 	//把config的资源返回
 	return cfgResources

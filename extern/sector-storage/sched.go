@@ -624,13 +624,13 @@ func (sh *scheduler) getTaskFreeCount(wid WorkerID, phaseTaskType sealtasks.Task
 	p1hostname := whl.info.Hostname[0:len(whl.info.Hostname)-2] + "p1"
 
 	// AP 放在了 P2机器上面
-	// 转化whl 的  p1-01-p2 =》 p1-01-p1，  Hostname找
+	// 转化whl 的  pc-01-p2 =》 pc-01-p1，  Hostname找
 	//用 sh.workers[wid]去循环一遍，找到这个wid，匹配whl.info.Hostname
 
 	// 单独的AP机器
-	// 转化whl 的  p1-01-AP =》 p1-01-p1，  Hostname找
+	// 转化whl 的  pc-01-AP =》 pc-01-p1，  Hostname找
 
-	//如果是p1 的任务，p1-01-p1 =》 p1-01-pp1,不过也没关系， 因为p1分配不需要p1hostname
+	//如果是p1 的任务，pc-01-p1 =》 pc-01-pp1,不过也没关系， 因为p1分配不需要p1hostname
 
 	log.Infof("when need to do AP, checked p1 workers hostname is %s ", p1hostname)
 
@@ -712,9 +712,14 @@ func (sh *scheduler) getTaskFreeCount(wid WorkerID, phaseTaskType sealtasks.Task
 		return 0
 	}
 
-	//
+	//去掉phaseTaskType == sealtasks.TTReadUnsealed
+	// if phaseTaskType == sealtasks.TTFetch || phaseTaskType == sealtasks.TTFinalize ||
+	// 	phaseTaskType == sealtasks.TTUnseal || phaseTaskType == sealtasks.TTReadUnsealed { // 不限制
+	// 	return 1
+	// }
+
 	if phaseTaskType == sealtasks.TTFetch || phaseTaskType == sealtasks.TTFinalize ||
-		phaseTaskType == sealtasks.TTUnseal || phaseTaskType == sealtasks.TTReadUnsealed { // 不限制
+		phaseTaskType == sealtasks.TTUnseal { // 不限制
 		return 1
 	}
 
