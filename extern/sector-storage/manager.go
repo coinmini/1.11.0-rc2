@@ -87,19 +87,20 @@ type result struct {
 	err error
 }
 
+//删除 官方资源分配的代码（官方的意图是无视服务器的资源可以调度）
 // ResourceFilteringStrategy is an enum indicating the kinds of resource
 // filtering strategies that can be configured for workers.
-type ResourceFilteringStrategy string
+// type ResourceFilteringStrategy string
 
-const (
-	// ResourceFilteringHardware specifies that available hardware resources
-	// should be evaluated when scheduling a task against the worker.
-	ResourceFilteringHardware = ResourceFilteringStrategy("hardware")
+// const (
+// 	// ResourceFilteringHardware specifies that available hardware resources
+// 	// should be evaluated when scheduling a task against the worker.
+// 	ResourceFilteringHardware = ResourceFilteringStrategy("hardware")
 
-	// ResourceFilteringDisabled disables resource filtering against this
-	// worker. The scheduler may assign any task to this worker.
-	ResourceFilteringDisabled = ResourceFilteringStrategy("disabled")
-)
+// 	// ResourceFilteringDisabled disables resource filtering against this
+// 	// worker. The scheduler may assign any task to this worker.
+// 	ResourceFilteringDisabled = ResourceFilteringStrategy("disabled")
+// )
 
 type SealerConfig struct {
 	ParallelFetchLimit int
@@ -114,7 +115,7 @@ type SealerConfig struct {
 	// ResourceFiltering instructs the system which resource filtering strategy
 	// to use when evaluating tasks against this worker. An empty value defaults
 	// to "hardware".
-	ResourceFiltering ResourceFilteringStrategy
+	// ResourceFiltering ResourceFilteringStrategy
 }
 
 type StorageAuth http.Header
@@ -169,12 +170,16 @@ func New(ctx context.Context, lstor *stores.Local, stor *stores.Remote, ls store
 		localTasks = append(localTasks, sealtasks.TTUnseal)
 	}
 
-	wcfg := WorkerConfig{
-		IgnoreResourceFiltering: sc.ResourceFiltering == ResourceFilteringDisabled,
-		TaskTypes:               localTasks,
-	}
-	worker := NewLocalWorker(wcfg, stor, lstor, si, m, wss)
-	err = m.AddWorker(ctx, worker)
+	// wcfg := WorkerConfig{
+	// 	IgnoreResourceFiltering: sc.ResourceFiltering == ResourceFilteringDisabled,
+	// 	TaskTypes:               localTasks,
+	// }
+	// worker := NewLocalWorker(wcfg, stor, lstor, si, m, wss)
+	// err = m.AddWorker(ctx, worker)
+	err = m.AddWorker(ctx, NewLocalWorker(WorkerConfig{
+		TaskTypes: localTasks,
+	}, stor, lstor, si, m, wss))
+
 	if err != nil {
 		return nil, xerrors.Errorf("adding local worker: %w", err)
 	}
@@ -395,7 +400,7 @@ func (m *Manager) SealPreCommit2(ctx context.Context, sector storage.SectorRef, 
 		return storage.SectorCids{}, xerrors.Errorf("acquiring sector lock: %w", err)
 	}
 
-	selector := newExistingSelector(m.index, sector.ID, storiface.FTCache|storiface.FTSealed, true)
+	selector := newExistingSelector(m.index, sector.ID, storiface.FTCache|storiface.FTSealed, false)
 
 	err = m.sched.Schedule(ctx, sector, sealtasks.TTPreCommit2, selector, m.schedFetch(sector, storiface.FTCache|storiface.FTSealed, storiface.PathSealing, storiface.AcquireMove), func(ctx context.Context, w Worker) error {
 		err := m.startWork(ctx, w, wk)(w.SealPreCommit2(ctx, sector, phase1Out))

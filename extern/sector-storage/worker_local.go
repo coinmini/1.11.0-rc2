@@ -488,6 +488,11 @@ func (l *LocalWorker) Info(context.Context) (storiface.WorkerInfo, error) {
 		panic(err)
 	}
 
+	//这个if 是默然加的， 和/lotus-seal-worker/main.go 是对应改的
+	if env, ok := os.LookupEnv("WORKER_NAME"); ok {
+		hostname = hostname + "-" + env
+	}
+
 	gpus, err := ffi.GetGPUDevices()
 	if err != nil {
 		log.Errorf("getting gpu devices failed: %+v", err)
@@ -509,8 +514,8 @@ func (l *LocalWorker) Info(context.Context) (storiface.WorkerInfo, error) {
 	}
 
 	return storiface.WorkerInfo{
-		Hostname:        hostname,
-		IgnoreResources: l.ignoreResources,
+		Hostname:      hostname,
+		TaskResources: storiface.NewTaskLimitConfig(),
 		Resources: storiface.WorkerResources{
 			MemPhysical: mem.Total,
 			MemSwap:     memSwap,
